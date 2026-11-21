@@ -150,7 +150,28 @@ body.inspecting{overflow:hidden}#inspect{position:fixed;z-index:8;inset:0;isolat
 @media(max-width:420px),(max-height:450px){
   .inspection-shell{grid-template-rows:minmax(12%,max-content) minmax(0,1fr) 24% 72px}
   .inspect-bar{display:grid;grid-template-columns:repeat(4,auto) 1fr;grid-template-rows:40px 1fr;gap:0 4px}
-  .inspect-bar #back{grid-column:5;grid-row:1;justify-self:end}
+  .inspect-end{grid-column:5;grid-row:1;justify-self:end}
   #inspect-seek{grid-column:1/5;grid-row:2;width:100%;min-width:0;margin:0}
   #inspect-time{grid-column:5;grid-row:2;justify-self:end;font-size:12px}
+}
+
+.inspect-end{display:flex;align-items:center;gap:5px;margin-left:auto}
+.inspect-end #back{color:inherit;background:transparent;border:0;padding:6px}
+.inspect-end #back:hover{background:#ffffff22}
+.movie-tools{position:relative}
+.movie-tools button{display:inline-flex;align-items:center;justify-content:center;color:#f4f2ec;border:1px solid #ffffff42;border-radius:3px;background:#17191db8;cursor:pointer}
+#movie-toggle{gap:6px;padding:4px 9px;font:700 16px/1.2 var(--display-font);letter-spacing:.04em}
+.movie-tools svg{width:15px;height:15px}
+.movie-tools button:hover,.movie-tools button:focus-visible{color:white;border-color:#ffbd84;background:#24262ce0}
+#movie-actions{position:absolute;right:0;bottom:calc(100% + 5px);display:flex;gap:3px}
+#movie-actions button{width:32px;height:32px}
+.inspection-shell>.liner,#movie-caption{grid-column:1;grid-row:3}
+.movie-running .liner{visibility:hidden}
+#movie-caption{align-self:end;justify-self:start;max-width:95%;margin:0 5% clamp(10px,2.8vh,30px);padding:4px 16px;border-left:3px solid #ffa64e;background:linear-gradient(90deg,#15171ccb,transparent);text-shadow:0 2px 6px #0009;pointer-events:none}
+#movie-caption span,#movie-caption strong{display:block}
+#movie-english{font:700 clamp(12px,1.8vh,19px)/1.3 var(--display-font);letter-spacing:.16em;color:#ffbb78}
+#movie-title{font:italic 700 clamp(22px,4vh,44px)/1.4 var(--display-font);letter-spacing:.035em;color:#fff}
+@media(max-width:650px),(max-height:450px){
+  .inspect-end{gap:2px}
+  #movie-toggle{padding:4px 6px;font-size:14px}
 }

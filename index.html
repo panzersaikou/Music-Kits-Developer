@@ -68,11 +68,21 @@
         <p>音乐盒将替换以下音乐：</p><ul><li>主界面音乐</li><li>回合开始和结束</li><li>下包后音乐</li><li>十秒警告</li><li>死亡视角</li></ul>
         <p id="artist-note"></p>
       </div>
+      <div id="movie-caption" aria-live="polite" aria-atomic="true" hidden><span id="movie-english"></span><strong id="movie-title"></strong></div>
       <div class="inspect-bar">
         <div id="sound-picker"><button id="sound-menu" aria-label="选择试听场景" aria-expanded="false" aria-controls="sound-drawer" title="选择试听场景"><span data-icon="headphones"></span></button><div id="sound-drawer" inert><div id="events" aria-label="选择试听场景"></div></div></div>
         <button id="inspect-play" aria-label="播放"><span data-icon="play"></span></button><div id="volume-picker"><button id="volume-button" aria-label="调节音量" title="调节音量" aria-expanded="false" aria-controls="volume-panel"><span data-icon="volume"></span></button><div id="volume-panel" inert><label for="inspect-volume">总音量 <output id="inspect-volume-value" for="inspect-volume">75%</output></label><input id="inspect-volume" type="range" min="0" max="1" step=".01" value=".75"></div></div><div id="bg-picker"><button id="bg-button" aria-label="更换检视背景" aria-expanded="false" aria-controls="bg-menu" title="更换检视背景"><span data-icon="photo"></span></button>
           <div id="bg-menu" hidden><div id="bg-options"><button data-preset="courtyard" type="button">默认庭院</button><button data-preset="de_inferno" type="button">炼狱小镇</button><button data-preset="cs_italy" type="button">意大利小镇</button><button data-preset="de_nuke" type="button">核子危机</button><button data-preset="de_mirage" type="button">荒漠迷城</button><button data-preset="de_ancient" type="button">远古遗迹</button><button data-preset="de_anubis" type="button">阿努比斯</button><button data-preset="de_dust2" type="button">炙热沙城 II</button><button data-preset="de_overpass" type="button">死亡游乐园</button><button data-preset="custom" type="button">我的背景</button></div><button id="bg-upload"><span data-icon="upload"></span>上传自己的背景</button></div></div><input id="bg-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
-        <input id="inspect-seek" type="range" min="0" max="1" step="any" value="0" aria-label="检视播放位置"><span id="inspect-time" class="mono"></span><button id="back">关闭</button>
+        <input id="inspect-seek" type="range" min="0" max="1" step="any" value="0" aria-label="检视播放位置"><span id="inspect-time" class="mono"></span><div class="inspect-end">
+          <div class="movie-tools">
+            <button id="movie-toggle" aria-label="一键检视 Movie" title="一键检视"><span id="movie-glyph" data-icon="film"></span>Movie</button>
+            <div id="movie-actions" hidden>
+              <button id="movie-restart" aria-label="从头播放 Movie" title="从头播放"><span data-icon="restart"></span></button>
+              <button id="movie-stop" aria-label="停止 Movie" title="停止"><span data-icon="stop"></span></button>
+            </div>
+          </div>
+          <button id="back">关闭</button>
+        </div>
       </div>
       <p id="inspect-message" class="message" role="status" hidden></p>
     </div>

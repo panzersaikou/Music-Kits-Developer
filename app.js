@@ -1,4 +1,7 @@
 const paths = {
+  film:'<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M7 4v16m10-16v16M3 9h4m-4 6h4m10-6h4m-4 6h4"/>',
+  restart:'<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
+  stop:'<rect x="5" y="5" width="14" height="14" rx="1" fill="currentColor"/>',
   photo:'<rect x="2.5" y="4" width="19" height="16" rx="1.5"/><circle cx="8" cy="9" r="1.3"/><path d="m4 18 5-5 3 3 4-6 5 8"/>',
   audio:'<path d="M3 10v4m4-8v12m5-15v18m5-15v12m4-8v4"/>',
   layers:'<path d="m12 2 10 5-10 5L2 7l10-5Zm10 10-10 5-10-5m20 5-10 5-10-5"/>',
@@ -76,6 +79,7 @@ let inspecting = false;
 let context;
 let master;
 let active;
+let movie;
 let frame;
 let playbackRequest = 0;
 let pendingKind;
@@ -290,6 +294,7 @@ function stop() {
   renderTimes();
 }
 function enterMusic(id) {
+  endMovie(false);
   stop();
   changeScene(id);
   scenePositions.set(id, 0);
@@ -297,6 +302,7 @@ function enterMusic(id) {
   else renderTimes();
 }
 function finishPlayback() {
+  if (movie) return finishMoviePart();
   const resumeMenu = inspecting && active?.kind === 'scene';
   stop();
   if (resumeMenu && (!previewManifest || sceneClips('menu').length)) enterMusic('menu');
@@ -357,7 +363,8 @@ async function play(kind, pieces, position, limit = durationOf(pieces)) {
     tick();
   } catch {
     if (request !== playbackRequest) return;
-    stop();
+    if (movie) endMovie(true);
+    else stop();
     notify('无法播放这段音频，请重新导入或尝试 WAV / MP3。');
   }
 }
@@ -495,11 +502,18 @@ function renderTimes() {
   $('scene-cursor').style.left = ((total ? sceneTime / total : 0) * 100) + '%';
   $('scene-time').textContent = format(sceneTime);
   $('scene-length').textContent = format(total);
-  $('inspect-time').textContent = format(sceneTime) + ' / ' + format(total);
-  for (const id of ['scene-seek', 'inspect-seek']) setTime(id, sceneTime, total);
+  const part = movie?.parts[movie.index];
+  const start = part?.start ?? 0;
+  const end = part?.end ?? total;
+  $('inspect-time').textContent = format(Math.max(0, Math.min(end, sceneTime) - start)) + ' / ' + format(end - start);
+  setTime('scene-seek', sceneTime, total);
+  $('inspect-seek').min = start;
+  setTime('inspect-seek', sceneTime, end);
+  if (movie?.gap) $('inspect-seek').disabled = true;
   $('scene-play').textContent = playing('scene') ? '暂停' : '试听场景';
-  const inspectLabel = active?.kind === 'scene' ? '暂停' : '播放';
-  const inspectGlyph = active?.kind === 'scene' ? 'pause' : 'play';
+  const inspectPlaying = movie ? !movie.paused : active?.kind === 'scene';
+  const inspectLabel = inspectPlaying ? '暂停' : '播放';
+  const inspectGlyph = inspectPlaying ? 'pause' : 'play';
   if ($('inspect-play').dataset.glyph !== inspectGlyph) {
     $('inspect-play').innerHTML = icon(inspectGlyph);
     $('inspect-play').dataset.glyph = inspectGlyph;
@@ -511,15 +525,35 @@ for (const [id, kind] of [['source-seek', 'source'], ['scene-seek', 'scene'], ['
   const slider = $(id);
   let scrubbing = false;
   let resume = false;
+  let scrubMovie;
   slider.addEventListener('pointerdown', () => {
     scrubbing = true;
+    scrubMovie = id === 'inspect-seek' ? movie : undefined;
+    if (scrubMovie) {
+      resume = !movie.paused;
+      if (resume) toggleMoviePause();
+      return;
+    }
     resume = active?.kind === kind;
     if (resume) stop();
   });
-  slider.addEventListener('input', () => seek(kind, Number(slider.value)));
+  slider.addEventListener('input', () => {
+    const position = Number(slider.value);
+    if (id === 'inspect-seek' && movie) {
+      stop();
+      putPosition(kind, position);
+      if (movie.paused) renderTimes();
+      else resumeMoviePart();
+    } else seek(kind, position);
+  });
   function finish() {
     if (!scrubbing) return;
     scrubbing = false;
+    if (scrubMovie) {
+      if (scrubMovie === movie && resume && movie.paused) toggleMoviePause();
+      scrubMovie = undefined;
+      return;
+    }
     const end = kind === 'source' ? assets.get(selected)?.duration : playableDuration();
     if (!resume || Number(slider.value) >= end) return;
     if (kind === 'source') playSource();
@@ -532,6 +566,7 @@ $('source-play').onclick = () => playSource();
 $('trim-play').onclick = () => playSource(true);
 $('scene-play').onclick = playScene;
 $('inspect-play').onclick = () => {
+  if (movie) return toggleMoviePause();
   if (pendingKind === 'scene' && context?.state === 'suspended') void context.resume();
   else playScene();
 };
@@ -811,6 +846,7 @@ function renderScene() {
   const [id, title, english, description] = scenes.find(([id]) => id === scene);
   const clips = clipList();
   const ready = visibleScenes().filter(([key]) => sceneClips(key).length).length;
+  $('movie-toggle').disabled = !ready;
   $('scene-count').textContent = ready + ' / ' + visibleScenes().length;
   $('scene').value = id;
   $('scene-level').value = Math.round((sceneLevels.get(id) ?? 1) * 100);
@@ -940,7 +976,101 @@ document.addEventListener('visibilitychange', () => setAlbumMotion(inspecting));
 window.addEventListener('blur', releaseAlbum);
 reducedMotion.addEventListener('change', requestPose);
 
+const movieOrder = ['menu','flag','bolt','eye','team','win','loss','plant','timer','star','star2','star3'];
+function movieProgram() {
+  const available = new Map(visibleScenes().map(def => [def[0], def]));
+  const parts = [];
+  for (const id of movieOrder) {
+    if (!available.has(id)) continue;
+    const duration = durationOf(sceneClips(id));
+    if (!duration) continue;
+    const [, title, english] = available.get(id);
+    parts.push({id, title:id === 'menu' ? '大厅音乐' : title, english,
+      start:id === 'timer' ? Math.max(0, duration - 10) : 0,
+      end:id === 'plant' ? Math.min(duration, 30) : duration});
+  }
+  return parts;
+}
+function updateMovieControls() {
+  const label = movie ? (movie.paused ? '继续播放 Movie' : '暂停 Movie') : '一键检视 Movie';
+  $('movie-toggle').title = label;
+  $('movie-toggle').setAttribute('aria-label', label);
+  $('movie-glyph').innerHTML = icon(movie ? (movie.paused ? 'play' : 'pause') : 'film');
+  $('movie-actions').hidden = $('movie-caption').hidden = !movie;
+  $('inspect').classList.toggle('movie-running', !!movie);
+}
+function startMoviePart(index) {
+  clearTimeout(movie.timer);
+  movie.index = index;
+  movie.gap = false;
+  movie.paused = false;
+  const part = movie.parts[index];
+  changeScene(part.id);
+  $('movie-title').textContent = part.title;
+  $('movie-english').textContent = part.english;
+  updateMovieControls();
+  if (!reducedMotion.matches) {
+    $('movie-caption').animate([{opacity:0, transform:'translateX(-9px)'}, {opacity:1, transform:'none'}], {duration:240});
+  }
+  void play('scene', clipList(), part.start, part.end);
+}
+function startMovie() {
+  if (!movie) {
+    const parts = movieProgram();
+    if (!inspecting || !parts.length) return;
+    const wasPlaying = playing('scene');
+    stop();
+    movie = {parts, previous:scene, positions:new Map(scenePositions), wasPlaying};
+  }
+  startMoviePart(0);
+}
+function endMovie(restore) {
+  if (!movie) return;
+  const {previous, positions, wasPlaying, timer} = movie;
+  clearTimeout(timer);
+  stop();
+  movie = undefined;
+  scenePositions.clear();
+  for (const [id, time] of positions) scenePositions.set(id, time);
+  updateMovieControls();
+  if (restore) {
+    changeScene(previous);
+    if (wasPlaying) playScene();
+  }
+}
+function finishMoviePart() {
+  stop();
+  const next = movie.index + 1;
+  if (next === movie.parts.length) return endMovie(true);
+  if (scene === 'plant' && movie.parts[next].id === 'timer') return startMoviePart(next);
+  movie.gap = true;
+  renderTimes();
+  movie.timer = setTimeout(() => startMoviePart(next), 450);
+}
+function resumeMoviePart() {
+  const part = movie.parts[movie.index];
+  const position = Math.max(part.start, scenePositions.get(scene) ?? part.start);
+  if (movie.gap || position >= part.end) {
+    if (movie.gap) startMoviePart(movie.index + 1);
+    else finishMoviePart();
+  } else {
+    void play('scene', clipList(), position, part.end);
+  }
+}
+function toggleMoviePause() {
+  movie.paused = !movie.paused;
+  updateMovieControls();
+  if (movie.paused) {
+    clearTimeout(movie.timer);
+    stop();
+  } else resumeMoviePart();
+}
+$('movie-toggle').onclick = () => movie ? toggleMoviePause() : startMovie();
+$('movie-restart').onclick = startMovie;
+$('movie-stop').onclick = () => endMovie(true);
+
 function showView(next) {
+  endMovie(false);
   if ($('clip-editor').open) $('clip-editor').close();
   stop();
   if (next) editorScene = scene;
