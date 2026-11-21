@@ -992,7 +992,7 @@ document.addEventListener('pointerdown', event => {
   if (!volumePicker.contains(event.target)) showVolume(false);
 });
 function renderKit() {
-  $('kit-title').textContent = '音乐盒' + (kit.stat ? '（StatTrak™）' : '') + ' | ' + (kit.name || '未命名');
+  $('kit-title-text').textContent = '音乐盒' + (kit.stat ? '（StatTrak™）' : '') + ' | ' + (kit.name || '未命名');
   $('stat-lines').hidden = !kit.stat;
   $('counter-label').hidden = !kit.stat;
   $('stat-value').textContent = kit.count;
