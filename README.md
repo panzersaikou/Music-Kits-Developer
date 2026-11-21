@@ -1,8 +1,8 @@
 # 音乐盒工坊
 
-[打开在线音乐盒工坊](https://panzersaikou.github.io/Music-Kits-Developer/) · [下载离线 HTML](https://github.com/panzersaikou/Music-Kits-Developer/raw/refs/heads/gh-pages/index.html)
+[打开在线音乐盒工坊](https://panzersaikou.github.io/Music-Kits-Developer/) · [下载离线工坊 ZIP](https://github.com/panzersaikou/Music-Kits-Developer/raw/refs/heads/gh-pages/music-kit-studio.zip)
 
-模拟 CS2 音乐盒的场外音频制作与检视网页。
+模拟 CS2 音乐盒的场外音频制作与检视网页。在线制作台的「下载离线 HTML」可直接保存单个网页。也可以下载上面的 ZIP，解压后用浏览器打开里面的 `music-kit-studio.html`。
 
 ## 使用
 
@@ -12,7 +12,7 @@
 4. 素材和精剪窗口均可放大至 64 倍。用波形上方的滑块平移视图，在精剪波形上拖动可重新选取片段。
 5. MVP、回合胜利和回合失败默认在场景最后 1.5 秒淡出。在场景编排中可分别开启开头淡入和结尾淡出，设置各自的时长并试听。两段渐变的总时长超过场景长度时，会按比例缩短。
 6. 打开「成品检视」，选择回合事件或 MVP 凯歌以试听最终编排。
-7. 点击制作台上方的「导出预览 HTML」，下载当前音乐盒的独立检视页。文件自带已编排的场景音频、封面、背景和介绍，发给朋友后用浏览器打开即可离线试听。浏览器若拦截自动播放，点一次播放图标即可。原始素材和可继续修改的工程仍保存在制作台中。
+7. 点击制作台上方的「导出预览 HTML」，下载当前音乐盒的独立检视页。文件自带已编排的场景音频、封面、背景和介绍，发给朋友后用浏览器打开即可离线试听。浏览器若拦截自动播放，点一次播放图标即可。若浏览器未自动下载，可点「保存刚导出的预览」手动保存。原始素材和可继续修改的工程仍保存在制作台中。
 
 在仓库目录启动静态服务器。
 

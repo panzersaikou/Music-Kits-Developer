@@ -52,6 +52,13 @@ const studioScript = document.currentScript;
 const studioMarkup = previewManifest ? '' : ['header.top', 'main.shell', '#clip-editor']
   .map(selector => document.querySelector(selector).outerHTML).join('\n');
 let exporting = false;
+if (!studioScript.src && !previewManifest) {
+  const offlineDownload = $('offline-download');
+  offlineDownload.href = location.href.split('#')[0];
+  offlineDownload.download = 'music-kit-studio.html';
+  offlineDownload.textContent = '下载离线 HTML';
+  offlineDownload.hidden = location.protocol === 'file:';
+}
 document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
 const assets = new Map();
 const cuts = new Map();
@@ -1253,6 +1260,7 @@ async function switchBoard(id, create = false) {
     opened.length = 0;
     selected = trimPlayback = undefined;
     scene = editorScene = 'menu';
+    clearPreviewDownload();
     boardId = id;
     populateBoard(project);
     fillKit();
@@ -1652,12 +1660,20 @@ function snapshotTracks() {
   }
   return tracks;
 }
+function clearPreviewDownload() {
+  const link = $('preview-download');
+  if (link.hasAttribute('href')) URL.revokeObjectURL(link.href);
+  link.removeAttribute('href');
+  link.hidden = true;
+}
 async function exportPreview() {
   if (busy || exporting) return;
   const tracks = snapshotTracks();
   if (!tracks.length) { notify('先给任一场景添加片段，再导出预览。'); return; }
   const button = $('export-preview');
   exporting = button.disabled = true;
+  const sourceBoard = boardId;
+  clearPreviewDownload();
   const exportedKit = {...kit};
   const manifest = {kit:exportedKit, mapPreset, volume:Number($('volume').value),
     tracks:tracks.map(({id,title,duration}) => ({id,title,duration}))};
@@ -1682,15 +1698,13 @@ async function exportPreview() {
     const metadata = JSON.stringify(manifest).replace(/</g, '\\u003c');
     parts.push('<script type="application/json" id="kit-preview">', metadata, '<\/script>');
     parts.push('<script>', resources.script.replace(/<\/script/gi, '<\\/script'), '<\/script></body></html>');
-    const url = URL.createObjectURL(new Blob(parts, {type:'text/html;charset=utf-8'}));
-    const download = document.createElement('a');
-    download.href = url;
+    if (boardId !== sourceBoard) return;
+    const download = $('preview-download');
+    download.href = URL.createObjectURL(new Blob(parts, {type:'text/html;charset=utf-8'}));
     download.download = (exportedKit.name || '音乐盒').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_') + ' - 检视.html';
-    document.body.append(download);
+    download.hidden = false;
     download.click();
-    download.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    notify('预览 HTML 已生成，可以将下载的文件直接分享给朋友。');
+    notify('预览已生成。如果下载没有开始，点击「保存刚导出的预览」。');
   } catch (error) {
     console.error('Preview export failed', error);
     notify('预览导出失败。请检查页面资源是否完整，或缩短较长的场景后重试。');
