@@ -56,7 +56,7 @@ const peaks = new Map();
 const scenePositions = new Map();
 const fades = new Map();
 const defaultFade = new Set(['star', 'star2', 'star3', 'win', 'loss']);
-const fadeSetting = () => fades.get(scene) ?? {enabled: defaultFade.has(scene), seconds: 1.5};
+const fadeSetting = () => ({enabled: defaultFade.has(scene), seconds: 1.5, inEnabled: false, inSeconds: 1, ...fades.get(scene)});
 const draft = new Map();
 let selected;
 let scene = scenes[0][0];
@@ -298,7 +298,8 @@ async function play(kind, pieces, position, limit = durationOf(pieces)) {
     const nodes = [];
     let offset = 0;
     const fade = fadeSetting();
-    const output = kind === 'scene' && fade.enabled ? sceneFade(ctx, start, position, limit, fade.seconds) : master;
+    const output = kind === 'scene' && (fade.enabled || fade.inEnabled)
+      ? sceneFade(ctx, start, position, durationOf(pieces), fade) : master;
     const clockRate = kind === 'source' ? rateOf(pieces[0]) : 1;
     active = {kind, position, end: limit, start, nodes, output, clockRate};
     for (const [i, piece] of pieces.entries()) {
@@ -346,13 +347,23 @@ function playSource(trimOnly = false) {
   trimPlayback = trimOnly ? {asset: selected, start: entry.start, end: entry.end} : undefined;
   void play('source', [{asset: selected, start: 0, end: asset.duration}], position, trimOnly ? entry.end : asset.duration);
 }
-function sceneFade(ctx, start, position, end, seconds) {
+function sceneFade(ctx, start, position, duration, fade) {
   const output = ctx.createGain();
-  const length = Math.min(seconds, end);
-  const remaining = end - position;
-  output.gain.setValueAtTime(Math.min(1, remaining / length), start);
-  if (remaining > length) output.gain.setValueAtTime(1, start + remaining - length);
-  output.gain.linearRampToValueAtTime(0, start + remaining);
+  const attack = fade.inEnabled ? fade.inSeconds : 0;
+  const release = fade.enabled ? fade.seconds : 0;
+  const scale = Math.min(1, duration / (attack + release));
+  const attackEnd = attack * scale;
+  const releaseStart = Math.max(attackEnd, duration - release * scale);
+  const remaining = duration - position;
+  const initial = Math.min(1, attack ? position / attackEnd : 1, release ? remaining / (release * scale) : 1);
+  output.gain.setValueAtTime(initial, start);
+  if (position < attackEnd) output.gain.linearRampToValueAtTime(1, start + (attackEnd - position));
+  if (release) {
+    if (position < releaseStart && releaseStart > attackEnd) {
+      output.gain.setValueAtTime(1, start + (releaseStart - position));
+    }
+    output.gain.linearRampToValueAtTime(0, start + remaining);
+  }
   output.connect(master);
   return output;
 }
@@ -366,18 +377,34 @@ function updateFade(setting) {
 }
 function renderFade() {
   const setting = fadeSetting();
-  $('fade-toggle').setAttribute('aria-pressed', String(setting.enabled));
-  $('fade-toggle').textContent = setting.enabled ? '结尾淡出 · 开' : '结尾淡出 · 关';
-  $('fade-duration').value = setting.seconds;
-  $('fade-duration').disabled = !setting.enabled;
-  $('fade-preview').disabled = !playableDuration();
+  for (const control of fadeControls) {
+    const enabled = setting[control.enabled];
+    const toggle = $(control.id + '-toggle');
+    toggle.setAttribute('aria-pressed', String(enabled));
+    toggle.textContent = control.label + (enabled ? ' · 开' : ' · 关');
+    $(control.id + '-duration').value = setting[control.seconds];
+    $(control.id + '-duration').disabled = !enabled;
+    $(control.id + '-preview').disabled = !playableDuration();
+  }
 }
-$('fade-toggle').onclick = () => updateFade({...fadeSetting(), enabled: !fadeSetting().enabled});
-$('fade-duration').onchange = () => updateFade({...fadeSetting(), seconds: Number($('fade-duration').value)});
-$('fade-preview').onclick = () => {
-  const end = playableDuration();
-  void play('scene', clipList(), Math.max(0, end - fadeSetting().seconds - .5), end);
-};
+const fadeControls = [
+  {id:'fade-in', label:'开头淡入', enabled:'inEnabled', seconds:'inSeconds'},
+  {id:'fade', label:'结尾淡出', enabled:'enabled', seconds:'seconds'},
+];
+for (const control of fadeControls) {
+  $(control.id + '-toggle').onclick = () => {
+    const setting = fadeSetting();
+    updateFade({...setting, [control.enabled]: !setting[control.enabled]});
+  };
+  $(control.id + '-duration').onchange = event =>
+    updateFade({...fadeSetting(), [control.seconds]: Number(event.target.value)});
+  $(control.id + '-preview').onclick = () => {
+    const end = playableDuration();
+    const span = Math.min(end, fadeSetting()[control.seconds] + .5);
+    const offset = control.id === 'fade-in' ? 0 : end - span;
+    void play('scene', clipList(), offset, offset + span);
+  };
+}
 function playScene() {
   if (playing('scene')) return stop();
   const clips = clipList();
