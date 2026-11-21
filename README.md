@@ -4,6 +4,12 @@
 
 模拟 CS2 音乐盒的场外音频制作与检视网页。在线制作台的「下载离线 HTML」可直接保存单个网页。也可以下载上面的 ZIP，解压后用浏览器打开里面的 `music-kit-studio.html`。
 
+## 参与项目
+
+欢迎提交问题、建议和代码改动。遇到播放或导出问题，可以在 Issue 里写明设备、浏览器和复现步骤。想直接改代码，可以 Fork 仓库，在自己的分支修改后向本仓库的 `main` 提交 Pull Request。维护者负责审阅、合并和发布，社区成员也可以在自己的 Fork 上独立维护版本。[提交 Issue](https://github.com/panzersaikou/Music-Kits-Developer/issues) · [查看 Pull Request](https://github.com/panzersaikou/Music-Kits-Developer/pulls)
+
+修改后可按下方步骤启动制作台试听，也可以运行 `python3 tools/build_offline.py dist`，在浏览器中打开 `dist/music-kit-studio.html` 验证单文件版。
+
 ## 使用
 
 1. 在制作台的素材库多选或拖入音频。每段素材有独立标签、播放位置和剪辑选区。
@@ -43,3 +49,10 @@ python3 -m http.server 3000 --bind 0.0.0.0
 选中素材后可收起素材库。拖动全曲总览可跳到歌曲的任意位置，放大后可启用「平移」或按住 Shift 拖动主波形。素材倍速使用变速播放，音高随速度变化。素材、精剪片段与场景的音量按层相乘。素材旁的删除按钮可以移除当前工作台中的音频。若场景引用了这份素材，删除前会显示受影响的片段数量。检视底栏的耳机按钮用于选曲，悬停扬声器可调节总音量。
 
 检视时可按住唱片并拖动观察封套与黑胶的透视变化，松手后回到轻微摆动。系统开启「减少动态效果」时仅保留手动旋转。底部图片按钮可选择地图、默认庭院或上传自定义背景，选择随工作台保存。内置地图截图来自 [GhostCap 的 CS2 地图图库](https://github.com/ghostcap-gaming/cs2-map-images/tree/2b24f0bef2977698a168a1b52c8e2f50fcbf32e3/cs2)。
+
+## 素材与第三方组件
+
+- Barlow Condensed 和 Noto Sans CJK SC 字体子集均按 SIL Open Font License 1.1 分发。[Barlow 许可](assets/barlow-license.txt) · [中文字体许可](assets/ui-zh-license.txt)
+- 封面读取组件打包了 music-metadata 及其依赖，文件末尾保留了各组件的版权和许可声明。[封面读取组件](assets/cover-reader.js)
+- 地图库作者说明截图可用于 CS2 相关项目。截图中的游戏画面、标识和商标涉及各自权利人，复用时请参看图库的使用说明。[GhostCap 地图库说明](https://github.com/ghostcap-gaming/cs2-map-images/blob/2b24f0bef2977698a168a1b52c8e2f50fcbf32e3/README.md)
+- 用户导入的音频、封面和背景由各自权利人决定授权。导出检视 HTML 只会打包作品，作品的许可仍由权利人决定。
