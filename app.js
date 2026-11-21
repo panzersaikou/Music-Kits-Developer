@@ -47,6 +47,11 @@ let editorScene = 'menu';
 let background, backgroundUrl;
 let mapPreset = 'courtyard';
 const $ = (id) => document.getElementById(id);
+const previewManifest = $('kit-preview');
+const studioScript = document.currentScript;
+const studioMarkup = previewManifest ? '' : ['header.top', 'main.shell', '#clip-editor']
+  .map(selector => document.querySelector(selector).outerHTML).join('\n');
+let exporting = false;
 document.querySelectorAll('[data-icon]').forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
 const assets = new Map();
 const cuts = new Map();
@@ -56,7 +61,7 @@ const peaks = new Map();
 const scenePositions = new Map();
 const fades = new Map();
 const defaultFade = new Set(['star', 'star2', 'star3', 'win', 'loss']);
-const fadeSetting = () => ({enabled: defaultFade.has(scene), seconds: 1.5, inEnabled: false, inSeconds: 1, ...fades.get(scene)});
+const fadeSetting = (id = scene) => ({enabled: defaultFade.has(id), seconds: 1.5, inEnabled: false, inSeconds: 1, ...fades.get(id)});
 const draft = new Map();
 let selected;
 let scene = scenes[0][0];
@@ -148,7 +153,10 @@ async function decode(blob) {
 }
 async function bufferFor(id) {
   if (!buffers.has(id)) {
-    const pending = decode(assets.get(id).blob);
+    const asset = assets.get(id);
+    const pending = asset.previewAudio
+      ? sound().decodeAudioData(readEmbeddedBytes(asset.previewAudio).buffer)
+      : decode(asset.blob);
     buffers.set(id, pending);
     pending.catch(() => buffers.delete(id));
   }
@@ -284,7 +292,7 @@ function enterMusic(id) {
 function finishPlayback() {
   const resumeMenu = inspecting && active?.kind === 'scene';
   stop();
-  if (resumeMenu) enterMusic('menu');
+  if (resumeMenu && (!previewManifest || sceneClips('menu').length)) enterMusic('menu');
 }
 function tick() {
   if (!active) return;
@@ -326,19 +334,11 @@ async function play(kind, pieces, position, limit = durationOf(pieces)) {
       const from = Math.max(position, offset);
       const to = Math.min(limit, end);
       if (to > from) {
-        const source = ctx.createBufferSource();
-        source.buffer = audio[i];
         const when = start + (from - position) / clockRate;
         const span = (to - from) / clockRate;
         const sampleOffset = piece.start + (from - offset) * rate / clockRate;
-        source.playbackRate.value = rate;
-        const mix = ctx.createGain();
-        mix.gain.value = (assets.get(piece.asset).level ?? 1) * (piece.level ?? 1) * (kind === 'scene' ? sceneLevels.get(scene) ?? 1 : 1);
-        mix.connect(output);
-        source.addEventListener('ended', () => mix.disconnect(), {once:true});
-        if (piece.gate) connectNoiseGate(source, when, sampleOffset, span, mix, rate);
-        else source.connect(mix);
-        source.start(when, sampleOffset, span * rate);
+        const level = (assets.get(piece.asset).level ?? 1) * (piece.level ?? 1) * (kind === 'scene' ? sceneLevels.get(scene) ?? 1 : 1);
+        const source = schedulePiece(ctx, output, audio[i], when, sampleOffset, span, rate, level, piece.gate);
         nodes.push(source);
       }
       offset = end;
@@ -354,6 +354,19 @@ async function play(kind, pieces, position, limit = durationOf(pieces)) {
     notify('无法播放这段音频，请重新导入或尝试 WAV / MP3。');
   }
 }
+function schedulePiece(ctx, output, audio, when, offset, span, rate, level, gate) {
+  const source = ctx.createBufferSource();
+  source.buffer = audio;
+  source.playbackRate.value = rate;
+  const mix = ctx.createGain();
+  mix.gain.value = level;
+  mix.connect(output);
+  source.addEventListener('ended', () => mix.disconnect(), {once:true});
+  if (gate) connectNoiseGate(source, when, offset, span, mix, rate);
+  else source.connect(mix);
+  source.start(when, offset, span * rate);
+  return source;
+}
 function playSource(trimOnly = false) {
   const asset = assets.get(selected);
   if (!asset) return;
@@ -365,7 +378,7 @@ function playSource(trimOnly = false) {
   trimPlayback = trimOnly ? {asset: selected, start: entry.start, end: entry.end} : undefined;
   void play('source', [{asset: selected, start: 0, end: asset.duration}], position, trimOnly ? entry.end : asset.duration);
 }
-function sceneFade(ctx, start, position, duration, fade) {
+function sceneFade(ctx, start, position, duration, fade, destination = master) {
   const output = ctx.createGain();
   const attack = fade.inEnabled ? fade.inSeconds : 0;
   const release = fade.enabled ? fade.seconds : 0;
@@ -382,7 +395,7 @@ function sceneFade(ctx, start, position, duration, fade) {
     }
     output.gain.linearRampToValueAtTime(0, start + remaining);
   }
-  output.connect(master);
+  output.connect(destination);
   return output;
 }
 function updateFade(setting) {
@@ -935,7 +948,12 @@ function showView(next) {
   $('edit-tab').toggleAttribute('aria-current', !next);
   $('inspect-tab').toggleAttribute('aria-current', next);
   $(next ? 'inspect-tab' : 'edit-tab').setAttribute('aria-current', 'page');
-  if (next) { renderKit(); enterMusic('menu'); }
+  if (next) {
+    renderKit();
+    const first = previewManifest && !sceneClips('menu').length
+      ? visibleScenes().find(([id]) => sceneClips(id).length)?.[0] : 'menu';
+    enterMusic(first || 'menu');
+  }
   else { changeScene(editorScene); drawWave(); }
   window.scrollTo(0, 0);
 }
@@ -943,7 +961,7 @@ $('edit-tab').onclick = () => { location.hash = 'edit'; };
 $('inspect-tab').onclick = () => { location.hash = 'inspect'; };
 $('back').onclick = $('edit-tab').onclick;
 function route() {
-  const next = location.hash === '#inspect';
+  const next = !!previewManifest || location.hash === '#inspect';
   if (next !== inspecting) showView(next);
 }
 window.addEventListener('hashchange', route);
@@ -1087,6 +1105,7 @@ $('bg-file').onchange = async () => {
 
 function setBusy(value) {
   busy = value;
+  $('export-preview').disabled = value || exporting;
   $('drop').disabled = value;
   $('board-new').disabled = $('board-list').disabled = value;
 }
@@ -1148,7 +1167,7 @@ $('drop').ondrop = (event) => {
   $('drop').classList.remove('drag');
   void importFiles([...event.dataTransfer.files]);
 };
-const db = new Promise((resolve, reject) => {
+const db = previewManifest ? null : new Promise((resolve, reject) => {
   const request = indexedDB.open('music-kit-studio', 2);
   request.onupgradeneeded = () => {
     const database = request.result;
@@ -1176,6 +1195,7 @@ function storageStatus(text) {
   $('save-status').textContent = text;
 }
 function save() {
+  if (previewManifest) return Promise.resolve();
   const id = boardId;
   boardOptions();
   const snapshot = {assets:[...assets.values()], cuts:[...cuts], pairedDefaultsVersion:1, fades:[...fades], sceneLevels:[...sceneLevels], kit:{...kit}, cover, background, mapPreset};
@@ -1289,7 +1309,7 @@ async function restore() {
 renderSources();
 renderScene();
 setBusy(true);
-void restore();
+
 
 // A linked-channel noise gate attenuates quiet passages while leaving louder music at unity.
 const envelopes = new WeakMap();
@@ -1318,7 +1338,7 @@ function connectNoiseGate(source, when, offset, length, output = master, rate = 
   const audio = source.buffer;
   const block = Math.max(1, Math.round(audio.sampleRate * .01));
   const levels = noiseEnvelope(audio);
-  const gain = sound().createGain();
+  const gain = source.context.createGain();
   const count = Math.max(2, Math.ceil(length * audio.sampleRate / block) + 1);
   const curve = Float32Array.from({length:count}, (_, i) => {
     const time = offset + length * rate * i / (count - 1);
@@ -1528,3 +1548,189 @@ for (const id of ['asset-rate','asset-level','scene-level']) {
   $(id).onchange = () => changeMix(id);
   if (id.endsWith('level')) $(id).oninput = () => {$(id+'-text').textContent = $(id).value + '%';};
 }
+
+function asDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+async function exportResource(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('无法读取预览页面资源');
+  return response;
+}
+async function previewResources() {
+  const link = document.querySelector('link[rel="stylesheet"]');
+  if (!link) {
+    const notices = Array.from(document.head.childNodes)
+      .filter(node => node.nodeType === Node.COMMENT_NODE).map(node => node.data).join('\n');
+    return {style:document.querySelector('style').textContent, script:studioScript.textContent, notices};
+  }
+  let style = await (await exportResource(link.href)).text();
+  const paths = new Set(Array.from(style.matchAll(/url\((assets\/[\w.-]+)\)/g), match => match[1]));
+  await Promise.all(Array.from(paths, async path => {
+    const response = await exportResource(new URL(path, link.href));
+    const data = await asDataURL(await response.blob());
+    style = style.replaceAll('url(' + path + ')', 'url(' + data + ')');
+  }));
+  const [script, ...licenses] = await Promise.all([studioScript.src, 'assets/barlow-license.txt', 'assets/ui-zh-license.txt']
+    .map(async url => (await exportResource(url)).text()));
+  return {style, script, notices:licenses.join('\n')};
+}
+
+// Store only the audible arrangement, including its effects, in a portable PCM WAV.
+function wavBlob(audio) {
+  const channels = Array.from({length:audio.numberOfChannels}, (_, i) => audio.getChannelData(i));
+  // Preserve headroom for boosted clips before the listener's master volume is applied.
+  let gain = 1;
+  for (const channel of channels) {
+    for (let i = 0; i < channel.length; i++) gain = Math.max(gain, Math.abs(channel[i]));
+  }
+  const frameBytes = channels.length * 2;
+  const dataLength = audio.length * frameBytes;
+  const header = new DataView(new ArrayBuffer(44));
+  const fourCC = (offset, text) => [...text].forEach((char, i) => header.setUint8(offset + i, char.charCodeAt(0)));
+  fourCC(0, 'RIFF');
+  header.setUint32(4, 36 + dataLength, true);
+  fourCC(8, 'WAVE');
+  fourCC(12, 'fmt ');
+  header.setUint32(16, 16, true);
+  header.setUint16(20, 1, true);
+  header.setUint16(22, channels.length, true);
+  header.setUint32(24, audio.sampleRate, true);
+  header.setUint32(28, audio.sampleRate * frameBytes, true);
+  header.setUint16(32, frameBytes, true);
+  header.setUint16(34, 16, true);
+  fourCC(36, 'data');
+  header.setUint32(40, dataLength, true);
+  const parts = [header];
+  for (let start = 0; start < audio.length; start += 65536) {
+    const frames = Math.min(65536, audio.length - start);
+    const chunk = new DataView(new ArrayBuffer(frames * frameBytes));
+    for (let i = 0; i < frames; i++) {
+      for (let ch = 0; ch < channels.length; ch++) {
+        const value = channels[ch][start + i] / gain;
+        chunk.setInt16(i * frameBytes + ch * 2, Math.round(value * (value < 0 ? 32768 : 32767)), true);
+      }
+    }
+    parts.push(chunk);
+  }
+  return {blob:new Blob(parts, {type:'audio/wav'}), gain};
+}
+async function renderExportTrack(track) {
+  const sampleRate = 44100;
+  const sources = await Promise.all(track.pieces.map(piece => piece.buffer()));
+  const channels = sources.every(audio => audio.numberOfChannels === 1) ? 1 : 2;
+  const ctx = new OfflineAudioContext(channels, Math.max(1, Math.ceil(track.duration * sampleRate)), sampleRate);
+  const output = sceneFade(ctx, 0, 0, track.duration, track.fade, ctx.destination);
+  let offset = 0;
+  track.pieces.forEach((piece, i) => {
+    schedulePiece(ctx, output, sources[i], offset, piece.start, piece.duration, piece.rate, piece.level, piece.gate);
+    offset += piece.duration;
+  });
+  return wavBlob(await ctx.startRendering());
+}
+function snapshotTracks() {
+  const tracks = [];
+  const loaders = new Map();
+  for (const [id, title] of visibleScenes()) {
+    const clips = sceneClips(id);
+    if (!clips.length) continue;
+    const pieces = clips.map(clip => {
+      const asset = assets.get(clip.asset);
+      if (!loaders.has(asset)) {
+        let pending;
+        loaders.set(asset, () => pending ??= (assets.get(asset.id) === asset ? bufferFor(asset.id) : decode(asset.blob)));
+      }
+      return {start:clip.start, duration:pieceDuration(clip), rate:rateOf(clip), gate:clip.gate,
+        level:(asset.level ?? 1) * (clip.level ?? 1) * (sceneLevels.get(id) ?? 1), buffer:loaders.get(asset)};
+    });
+    tracks.push({id, title, duration:durationOf(clips), fade:fadeSetting(id), pieces});
+  }
+  return tracks;
+}
+async function exportPreview() {
+  if (busy || exporting) return;
+  const tracks = snapshotTracks();
+  if (!tracks.length) { notify('先给任一场景添加片段，再导出预览。'); return; }
+  const button = $('export-preview');
+  exporting = button.disabled = true;
+  const exportedKit = {...kit};
+  const manifest = {kit:exportedKit, mapPreset, volume:Number($('volume').value),
+    tracks:tracks.map(({id,title,duration}) => ({id,title,duration}))};
+  const chosenBackground = mapPreset === 'custom' ? background : null;
+  try {
+    notify('正在准备预览文件…');
+    const [resources, art, backdrop] = await Promise.all([previewResources(),
+      cover ? asDataURL(cover) : null, chosenBackground ? asDataURL(chosenBackground) : null]);
+    Object.assign(manifest, {cover:art, background:backdrop});
+    const parts = ['<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>音乐盒检视</title><!--',
+      resources.notices, '--><style>', resources.style,
+      '\nheader.top,main>footer,#editor,#back,#bg-upload{display:none!important}</style></head><body>',
+      studioMarkup];
+    for (const [i, track] of tracks.entries()) {
+      button.textContent = '正在导出 ' + (i + 1) + ' / ' + tracks.length;
+      notify('正在生成「' + track.title + '」…');
+      const {blob, gain} = await renderExportTrack(track);
+      manifest.tracks[i].gain = gain;
+      const url = await asDataURL(blob);
+      parts.push('<script type="application/octet-stream" id="audio-' + track.id + '">', new Blob([url.slice(url.indexOf(',') + 1)]), '<\/script>');
+    }
+    const metadata = JSON.stringify(manifest).replace(/</g, '\\u003c');
+    parts.push('<script type="application/json" id="kit-preview">', metadata, '<\/script>');
+    parts.push('<script>', resources.script.replace(/<\/script/gi, '<\\/script'), '<\/script></body></html>');
+    const url = URL.createObjectURL(new Blob(parts, {type:'text/html;charset=utf-8'}));
+    const download = document.createElement('a');
+    download.href = url;
+    download.download = (exportedKit.name || '音乐盒').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_') + ' - 检视.html';
+    document.body.append(download);
+    download.click();
+    download.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    notify('预览 HTML 已生成，可以将下载的文件直接分享给朋友。');
+  } catch (error) {
+    console.error('Preview export failed', error);
+    notify('预览导出失败。请检查页面资源是否完整，或缩短较长的场景后重试。');
+  } finally {
+    exporting = false;
+    button.disabled = busy;
+    button.textContent = '导出预览 HTML';
+  }
+}
+$('export-preview').onclick = exportPreview;
+
+function readEmbeddedBytes(id) {
+  const data = $(id).textContent;
+  if (Uint8Array.fromBase64) return Uint8Array.fromBase64(data);
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+async function openExportedPreview() {
+  const project = JSON.parse(previewManifest.textContent);
+  Object.assign(kit, project.kit);
+  for (const {id, title, duration, gain} of project.tracks) {
+    sceneLevels.set(id, gain);
+    assets.set(id, {id, name:title, duration, previewAudio:'audio-' + id});
+    cuts.set(id, [{asset:id, start:0, end:duration}]);
+    fades.set(id, {enabled:false, inEnabled:false});
+  }
+  // The export includes the final scene choices, including intentionally empty paired scenes.
+  for (const id of ['plant','timer']) if (!cuts.has(id)) cuts.set(id, []);
+  const imageBlob = async data => data ? (await fetch(data)).blob() : undefined;
+  setCover(await imageBlob(project.cover));
+  setBackground(await imageBlob(project.background), project.mapPreset);
+  $('inspect-volume').value = project.volume;
+  updateMasterVolume({target:$('inspect-volume')});
+  document.title = (kit.name || '音乐盒') + ' · 成品检视';
+  fillKit();
+  setBusy(false);
+  showView(true);
+}
+
+if (previewManifest) void openExportedPreview();
+else void restore();
