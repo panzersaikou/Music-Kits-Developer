@@ -1,5 +1,7 @@
 # 音乐盒工坊
 
+[打开在线音乐盒工坊](https://panzersaikou.github.io/Music-Kits-Developer/) · [下载离线 HTML](https://github.com/panzersaikou/Music-Kits-Developer/raw/refs/heads/gh-pages/index.html)
+
 模拟 CS2 音乐盒的场外音频制作与检视网页。
 
 ## 使用
