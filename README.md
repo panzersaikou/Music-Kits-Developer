@@ -31,7 +31,7 @@ python3 -m http.server 3000 --bind 0.0.0.0
 
 进入检视后默认循环主界面音乐。通过左下角的耳机按钮选择场景，场景播完会自动回到主界面音乐。若浏览器要求用户交互，可在底栏点播放。旁边的图片按钮可更换本地背景。
 
-各场景仅提示推荐长度。下包后音乐推荐 40 秒，依据为 CS2 的 [mp_c4timer 默认配置](https://github.com/SteamDatabase/GameTracking-CS2/blob/master/DumpSource2/convars.txt)。检视时十秒警告优先使用下包音乐末尾十秒，较短的编排会从头播放。没有下包音乐时使用单独编排的十秒警告。
+各场景仅提示推荐长度。下包后音乐推荐 40 秒，依据为 CS2 的 [mp_c4timer 默认配置](https://github.com/SteamDatabase/GameTracking-CS2/blob/master/DumpSource2/convars.txt)。先编排下包后音乐，十秒警告会使用其最后 10 秒。先编排十秒警告，下包后音乐会保留警告的结尾，向前取最多 40 秒。时长按实际播放速度计算，遇到素材开头就从头播放。自动片段可在工作台精剪，修改后独立保存，也可点击「恢复自动取段」重新联动。
 
 ## 工作台与混音
 

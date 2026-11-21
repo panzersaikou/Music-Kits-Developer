@@ -42,7 +42,7 @@
       <section class="panel arrangement" aria-labelledby="arrange-title">
         <div class="section-heading"><h2 id="arrange-title"><span data-icon="flag"></span> 场景编排</h2><span id="scene-count" class="counter"></span></div>
         <div class="variant-picker"><label for="mvp-count">MVP 凯歌数量</label><select id="mvp-count"><option>1</option><option>2</option><option>3</option></select></div><label for="scene">当前场景</label><select id="scene"></select>
-        <p id="scene-note" class="muted"></p>
+        <p id="scene-note" class="muted"></p><button type="button" id="restore-pair" class="secondary" hidden>恢复自动取段</button>
         <p id="scene-budget" class="budget" role="status"></p><ol id="clips" class="clip-list"></ol>
         <div id="scene-timeline" class="timeline composition"><div id="scene-segments" class="segments"></div><div id="scene-cursor" class="cursor"></div><input id="scene-seek" type="range" min="0" max="1" step="any" value="0" aria-label="场景播放位置" disabled></div>
         <div class="time-row mono"><span id="scene-time">0:00.00</span><span id="scene-length">0:00.00</span></div>

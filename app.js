@@ -27,8 +27,8 @@ const scenes = [
   ['bolt', '开始行动', 'ROUND ACTION', '冻结时间结束，玩家开始移动。', 8],
   ['eye', '阵亡', 'DEATH CAMERA', '角色阵亡后的音乐。', 5],
   ['team', '选择阵营', 'TEAM SELECT', '选择阵营时的背景音乐。', 15],
-  ['plant', '下包后音乐', 'BOMB PLANTED', 'CS2 默认下包倒计时为 40 秒。', 40],
-  ['timer', '十秒警告', 'TEN SECOND WARNING', '检视优先使用下包音乐最后十秒。没有下包音乐时使用此处编排。', 10],
+  ['plant', '下包后音乐', 'BOMB PLANTED', 'CS2 默认下包倒计时为 40 秒。先编排十秒警告时，会从警告结尾向前取最多 40 秒。', 40],
+  ['timer', '十秒警告', 'TEN SECOND WARNING', '先编排下包后音乐时，会取它的最后 10 秒作为警告。', 10],
   ['win', '回合胜利', 'ROUND WIN', '队伍获得回合胜利时播放。', 7],
   ['loss', '回合失败', 'ROUND LOSS', '队伍输掉回合时播放。', 7],
   ['star', 'MVP 凯歌', 'MVP ANTHEM', '获得回合 MVP 时播放的个人凯歌。', 8],
@@ -76,17 +76,35 @@ let busy = true;
 const rateOf = piece => assets.get(piece.asset)?.rate || 1;
 const pieceDuration = piece => (piece.end - piece.start) / rateOf(piece);
 const durationOf = clips => clips.reduce((total, clip) => total + pieceDuration(clip), 0);
-function inspectClips(id) {
-  const bomb = cuts.get('plant') || [];
-  if (id !== 'timer' || !bomb.length) return cuts.get(id) || [];
-  let skip = Math.max(0, durationOf(bomb) - 10);
-  return bomb.flatMap(clip => {
-    const start = Math.min(clip.end, clip.start + skip * rateOf(clip));
-    skip = Math.max(0, skip - pieceDuration(clip));
-    return start < clip.end ? [{...clip, start}] : [];
-  });
+const pairedScene = {plant: 'timer', timer: 'plant'};
+function tailClips(clips, seconds) {
+  let skip = Math.max(0, durationOf(clips) - seconds);
+  const tail = [];
+  for (const clip of clips) {
+    const length = pieceDuration(clip);
+    if (skip >= length) {
+      skip -= length;
+    } else {
+      tail.push({...clip, start: clip.start + skip * rateOf(clip)});
+      skip = 0;
+    }
+  }
+  return tail;
 }
-const clipList = () => inspecting ? inspectClips(scene) : cuts.get(scene) || [];
+function sceneClips(id) {
+  if (cuts.has(id)) return cuts.get(id);
+  const source = cuts.get(pairedScene[id]);
+  if (!source?.length) return [];
+  if (id === 'timer') return tailClips(source, 10);
+  const clips = tailClips(source, 40);
+  const first = clips[0];
+  if (first) {
+    const missing = Math.max(0, 40 - durationOf(clips));
+    first.start = Math.max(0, first.start - missing * rateOf(first));
+  }
+  return clips;
+}
+const clipList = () => sceneClips(scene);
 const playableDuration = () => durationOf(clipList());
 function initialWindow(duration) {
   return {start: 0, end: Math.min(duration, scene === 'menu' ? duration : recommended()), position: 0};
@@ -260,7 +278,7 @@ function enterMusic(id) {
   stop();
   changeScene(id);
   scenePositions.set(id, 0);
-  if (inspectClips(id).length) playScene();
+  if (sceneClips(id).length) playScene();
   else renderTimes();
 }
 function finishPlayback() {
@@ -535,8 +553,14 @@ function deleteAsset(id) {
   for (const [key, clips] of cuts) {
     const remaining = clips.filter(clip => clip.asset !== id);
     if (remaining.length === clips.length) continue;
-    cuts.set(key, remaining);
+    if (!remaining.length && pairedScene[key]) cuts.delete(key);
+    else cuts.set(key, remaining);
     scenePositions.delete(key);
+    if (pairedScene[key] && !cuts.has(pairedScene[key])) scenePositions.delete(pairedScene[key]);
+  }
+  if (!cuts.get('plant')?.length && !cuts.get('timer')?.length) {
+    cuts.delete('plant');
+    cuts.delete('timer');
   }
   closeAsset(id);
   for (const map of [assets, buffers, peaks, draft]) map.delete(id);
@@ -730,11 +754,16 @@ for (const [id, edge] of [['trim-in', 'start'], ['trim-out', 'end']]) {
 
 function changeClips(clips) {
   if (playing('scene')) stop();
-  cuts.set(scene, clips);
+  const partner = pairedScene[scene];
+  if (clips && (clips.length || cuts.get(partner)?.length)) cuts.set(scene, clips);
+  else cuts.delete(scene);
+  if (partner && !cuts.get(scene)?.length && !cuts.get(partner)?.length) cuts.delete(partner);
+  if (partner && !cuts.has(partner)) scenePositions.delete(partner);
   scenePositions.set(scene, Math.min(scenePositions.get(scene) || 0, playableDuration()));
   renderScene();
   save();
 }
+$('restore-pair').onclick = () => changeClips(null);
 $('add').onclick = () => {
   if (!selected) return;
   const {start, end} = draft.get(selected);
@@ -761,12 +790,16 @@ $('scene').onchange = () => changeScene($('scene').value);
 function renderScene() {
   const [id, title, english, description] = scenes.find(([id]) => id === scene);
   const clips = clipList();
-  const ready = visibleScenes().filter(([key]) => cuts.get(key)?.length).length;
+  const ready = visibleScenes().filter(([key]) => sceneClips(key).length).length;
   $('scene-count').textContent = ready + ' / ' + visibleScenes().length;
   $('scene').value = id;
   $('scene-level').value = Math.round((sceneLevels.get(id) ?? 1) * 100);
   $('scene-level-text').textContent = $('scene-level').value + '%';
-  $('scene-note').textContent = description;
+  const hasPartner = !!cuts.get(pairedScene[id])?.length;
+  $('scene-note').textContent = hasPartner && !cuts.has(id)
+    ? (id === 'timer' ? '已自动取下包后音乐的末尾片段。' : '已从十秒警告的结尾向前取段。') + '编辑片段后可独立编排。'
+    : description;
+  $('restore-pair').hidden = !(hasPartner && cuts.has(id));
   $('scene-budget').textContent = '推荐 ' + recommended() + ' 秒 · 已编排 ' + format(durationOf(clips));
   syncTrim();
   let visibleTime = playableDuration();
@@ -817,7 +850,7 @@ function renderScene() {
       closePicker();
       $('sound-menu').focus({preventScroll:true});
     }, 'listen-item');
-    item.disabled = !inspectClips(key).length;
+    item.disabled = !sceneClips(key).length;
     item.setAttribute('aria-pressed', String(key === scene));
     return item;
   }));
@@ -1145,7 +1178,7 @@ function storageStatus(text) {
 function save() {
   const id = boardId;
   boardOptions();
-  const snapshot = {assets:[...assets.values()], cuts:[...cuts], fades:[...fades], sceneLevels:[...sceneLevels], kit:{...kit}, cover, background, mapPreset};
+  const snapshot = {assets:[...assets.values()], cuts:[...cuts], pairedDefaultsVersion:1, fades:[...fades], sceneLevels:[...sceneLevels], kit:{...kit}, cover, background, mapPreset};
   unsavedBoards.set(id,snapshot);
   return access('project', 'readwrite', store => {
     store.put(snapshot.kit.name || '未命名工作台', 'label:' + id);
@@ -1176,7 +1209,10 @@ function populateBoard(project = {}) {
   for (const [key, value] of project.sceneLevels || []) sceneLevels.set(key,value);
   for (const [key, value] of project.fades || []) fades.set(key, value);
   for (const asset of project.assets || []) assets.set(asset.id, asset);
-  for (const [id, clips] of project.cuts || []) cuts.set(id, clips);
+  for (const [id, clips] of project.cuts || []) {
+    // Older boards stored empty arrays even for paired scenes awaiting a default.
+    if (clips.length || !pairedScene[id] || project.pairedDefaultsVersion) cuts.set(id, clips);
+  }
   mergeLegacyObjective();
 }
 function boardOptions() {
