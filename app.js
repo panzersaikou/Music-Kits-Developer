@@ -10,7 +10,6 @@ const paths = {
   loss:'<path d="m3 7 6 6 4-4 8 9m-6 0h6v-6"/>',
   timer:'<circle cx="12" cy="13" r="8"/><path d="M9 2h6m-3 7v4l2 2"/>',
   star:'<path d="m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6Z"/>',
-  target:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/>',
   eye:'<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2"/>',
   arrow:'<path d="m9 6 6 6-6 6"/>',
   play:'<path d="m8 5 12 7-12 7Z" fill="currentColor"/>',
@@ -26,7 +25,6 @@ const scenes = [
   ['menu', '主界面音乐', 'MAIN MENU', '进入检视时播放，场景试听结束后循环播放。', 120],
   ['flag', '回合时间冻结', 'FREEZE TIME', '回合购买阶段的音乐。', 15],
   ['bolt', '开始行动', 'ROUND ACTION', '冻结时间结束，玩家开始移动。', 8],
-  ['target', '地图目标', 'MAP OBJECTIVE', '地图目标触发时播放。', 8],
   ['eye', '阵亡', 'DEATH CAMERA', '角色阵亡后的音乐。', 5],
   ['team', '选择阵营', 'TEAM SELECT', '选择阵营时的背景音乐。', 15],
   ['plant', '下包后音乐', 'BOMB PLANTED', 'CS2 默认下包倒计时为 40 秒。', 40],
@@ -43,7 +41,7 @@ let boardId = 'current';
 const boards = new Map([['current', '未命名工作台']]);
 const unsavedBoards = new Map();
 const sceneLevels = new Map();
-const visibleScenes = () => scenes.slice(0, 10 + kit.variants);
+const visibleScenes = () => scenes.slice(0, scenes.length - 3 + kit.variants);
 const recommended = () => scenes.find(([id]) => id === scene)[4];
 let editorScene = 'menu';
 let background, backgroundUrl;
@@ -1132,6 +1130,18 @@ function save() {
     storageStatus('本地存储不可用或空间不足，工作台保留在本次会话中');
   });
 }
+function mergeLegacyObjective() {
+  const oldClips = cuts.get('target') || [];
+  const plantClips = cuts.get('plant') || [];
+  if (oldClips.length) cuts.set('plant', [...oldClips, ...plantClips]);
+  cuts.delete('target');
+  for (const settings of [sceneLevels, fades]) {
+    if (!plantClips.length && !settings.has('plant') && settings.has('target')) {
+      settings.set('plant', settings.get('target'));
+    }
+    settings.delete('target');
+  }
+}
 function populateBoard(project = {}) {
   setCover(project.cover);
   setBackground(project.background, project.mapPreset);
@@ -1140,6 +1150,7 @@ function populateBoard(project = {}) {
   for (const [key, value] of project.fades || []) fades.set(key, value);
   for (const asset of project.assets || []) assets.set(asset.id, asset);
   for (const [id, clips] of project.cuts || []) cuts.set(id, clips);
+  mergeLegacyObjective();
 }
 function boardOptions() {
   boards.set(boardId, kit.name || '未命名工作台');
@@ -1196,6 +1207,7 @@ async function restore() {
           notify('有旧版音轨无法解码，可从原文件重新导入。');
         }
       }
+      mergeLegacyObjective();
       if (assets.size === legacy.length && legacy.length) save();
     }
   } catch {

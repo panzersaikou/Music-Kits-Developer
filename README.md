@@ -21,7 +21,7 @@ python3 -m http.server 3000 --bind 0.0.0.0
 
 ## 场景参考
 
-大厅、回合开始、回合行动、回合胜负、目标事件、十秒警告、死亡视角和 MVP 凯歌的触发说明，参考了 [GameTracking-CS2 收录的 CS2 游戏英文本地化文件](https://github.com/SteamDatabase/GameTracking-CS2/blob/master/game/csgo/pak01_dir/resource/csgo_english.txt)。网页将游戏音量设置里共用的回合结束类别拆为胜利和失败两条音轨，便于分别制作和试听。
+大厅、回合开始、回合行动、回合胜负、下包后音乐、十秒警告、死亡视角和 MVP 凯歌的触发说明，参考了 [GameTracking-CS2 收录的 CS2 游戏英文本地化文件](https://github.com/SteamDatabase/GameTracking-CS2/blob/master/game/csgo/pak01_dir/resource/csgo_english.txt)。网页将游戏音量设置里共用的回合结束类别拆为胜利和失败两条音轨，便于分别制作和试听。
 
 ## 成品检视
 
