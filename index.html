@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101113"><title>音乐盒工坊 · Music Kit Studio</title>
+<link rel="stylesheet" href="style.css"><script src="assets/cover-reader.js" defer></script><script src="app.js" defer></script>
+</head>
+<body>
+<header class="top"><div class="shell top-inner">
+  <a class="brand" href="#"><span class="logo" data-icon="audio"></span><span>MUSIC KIT <em>STUDIO</em><small>音乐盒工坊</small></span></a>
+  <nav aria-label="工作区"><button id="edit-tab" class="tab" aria-current="page">制作台</button><button id="inspect-tab" class="tab">成品检视 <span data-icon="arrow"></span></button></nav>
+</div></header>
+<main class="shell">
+  <section id="editor">
+    <div class="intro"><div><div class="eyebrow">MUSIC KIT WORKBENCH</div><h1>制作你的<span>音乐盒</span></h1></div></div>
+    <div class="board-tools"><label>工作台 <select id="board-list" disabled></select></label><button id="board-new" class="secondary" disabled>新建工作台</button><button id="library-toggle" class="secondary" aria-expanded="true" aria-controls="library">收起素材库</button></div>
+    <p id="message" class="message" role="status" hidden></p>
+    <div class="desk">
+      <section id="library" class="panel library" aria-labelledby="library-title">
+        <div class="section-heading"><h2 id="library-title"><span data-icon="layers"></span> 素材库</h2><span id="source-count" class="counter"></span></div>
+        <button id="drop" class="drop" type="button"><span data-icon="upload"></span><strong>导入或拖入音频</strong><small>可多选 · 单文件 100 MB</small></button>
+        <input id="files" type="file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac" multiple hidden>
+        <div id="sources" class="list"></div>
+      </section>
+      <section class="panel editor-panel" aria-labelledby="cut-title">
+        <div class="section-heading"><h2 id="cut-title"><span data-icon="headphones"></span> 素材剪辑</h2><div class="volume"><span data-icon="volume"></span><input id="volume" type="range" min="0" max="1" step=".01" value=".75" aria-label="全局音量"></div></div>
+        <div id="opened" class="opened" aria-label="已打开的素材"></div>
+        <div class="mix-tools"><label>素材倍速 <select id="asset-rate"><option>0.5</option><option>0.75</option><option>1</option><option>1.25</option><option>1.5</option><option>2</option></select> ×</label><label>素材音量 <input id="asset-level" type="range" min="0" max="150" value="100"><output id="asset-level-text">100%</output></label></div>
+        <div class="asset-head"><h3 id="source-title">选择一段素材</h3><span id="source-length" class="mono"></span></div>
+        <div class="zoom-tools" aria-label="波形缩放"><button id="source-minus" class="secondary" aria-label="缩小波形">−</button><output id="source-scale">1×</output><button id="source-plus" class="secondary" aria-label="放大波形">＋</button><button class="secondary" id="hand" aria-pressed="false">平移</button><input id="source-pan" type="range" min="0" max="1" step="any" value="0" aria-label="平移可见时间范围" disabled><small id="source-range"></small></div><div class="timeline" id="source-timeline"><canvas id="wave" aria-hidden="true"></canvas><div id="trim-shade" class="trim-shade"></div><button id="window-grip" type="button" role="slider" aria-label="平移取样框" aria-valuemin="0" hidden>⠿</button><div id="source-cursor" class="cursor"></div><input id="source-seek" type="range" min="0" max="1" step="any" value="0" aria-label="素材播放位置" disabled><button id="trim-in" class="trim-handle" aria-label="拖动入点" title="拖动入点" hidden></button><button id="trim-out" class="trim-handle" aria-label="拖动出点" title="拖动出点" hidden></button></div>
+        <div id="overview" class="overview"><canvas id="overview-wave"></canvas><span id="overview-region"></span><input type="range" id="overview-nav" min="0" max="1" step="any" aria-label="拖动全曲总览定位"></div>
+        <div class="time-row mono"><span id="source-time">0:00.00</span><span id="source-end">0:00.00</span></div>
+        <div class="transport"><button id="source-play" class="icon-button" aria-label="播放素材" disabled></button><button id="trim-play" class="secondary" disabled>试听选区</button></div>
+        <div class="window-controls"><label>取样框时长（秒）<input id="window-length" type="number" min="0.01" step="any" disabled></label><button id="fit-window" class="secondary" hidden>使用推荐时长</button></div>
+        <small class="muted">拖动取样框两侧改变长度，拖动底部橙条平移选区。全曲总览可快速定位。</small>
+        <div class="trim">
+          <label>入点（秒）<span><input id="in" type="number" min="0" step=".001" aria-label="入点（秒）" disabled><button id="mark-in" class="secondary" disabled>设为当前位置</button></span></label>
+          <label>出点（秒）<span><input id="out" type="number" min="0" step=".001" aria-label="出点（秒）" disabled><button id="mark-out" class="secondary" disabled>设为当前位置</button></span></label>
+        </div>
+        <div class="add-row"><span id="trim-duration" class="mono"></span><button id="add" class="primary" disabled>添加片段</button></div>
+      </section>
+      <section class="panel arrangement" aria-labelledby="arrange-title">
+        <div class="section-heading"><h2 id="arrange-title"><span data-icon="flag"></span> 场景编排</h2><span id="scene-count" class="counter"></span></div>
+        <div class="variant-picker"><label for="mvp-count">MVP 凯歌数量</label><select id="mvp-count"><option>1</option><option>2</option><option>3</option></select></div><label for="scene">当前场景</label><select id="scene"></select>
+        <p id="scene-note" class="muted"></p>
+        <p id="scene-budget" class="budget" role="status"></p><ol id="clips" class="clip-list"></ol>
+        <div id="scene-timeline" class="timeline composition"><div id="scene-segments" class="segments"></div><div id="scene-cursor" class="cursor"></div><input id="scene-seek" type="range" min="0" max="1" step="any" value="0" aria-label="场景播放位置" disabled></div>
+        <div class="time-row mono"><span id="scene-time">0:00.00</span><span id="scene-length">0:00.00</span></div>
+        <label class="gain-label">场景音量 <input type="range" min="0" max="150" id="scene-level" value="100"><output id="scene-level-text">100%</output></label><div class="fade-tools"><button id="fade-toggle" class="secondary" aria-pressed="false">结尾淡出</button><select id="fade-duration" aria-label="淡出时长"><option value="0.5">0.5 秒</option><option value="1">1 秒</option><option value="1.5">1.5 秒</option><option value="2">2 秒</option><option value="3">3 秒</option></select><button id="fade-preview" class="secondary">试听结尾</button></div>
+        <div class="transport"><button id="scene-play" class="secondary" disabled>试听场景</button></div>
+      </section>
+    </div>
+    <details class="kit-settings"><summary>音乐盒资料与封面</summary><div class="kit-fields">
+    <label>作者与音乐盒名称<input id="kit-name" maxlength="100" placeholder="作者 - 音乐盒名称"></label>
+    <label>作品介绍<textarea id="kit-note" rows="2" maxlength="600" placeholder="用一两句话介绍这套音乐盒"></textarea></label>
+    <label class="stat-check"><input id="kit-stat" type="checkbox"> StatTrak™</label><label id="counter-label">展示的 MVP 次数<input id="kit-counter" type="number" min="0" max="999999999" step="1"></label>
+    <button id="cover-button" type="button" class="secondary" disabled>上传唱片封面</button><input type="file" id="cover-file" accept="image/png,image/jpeg,image/webp" hidden>
+    </div></details><div class="privacy"><span data-icon="shield"></span><span id="save-status" role="status">素材和编排保存在当前浏览器</span></div>
+  </section>
+  <section id="inspect" hidden aria-label="音乐盒检视">
+    <div class="inspection-shell">
+      <h1 id="kit-title"></h1>
+      <div class="album-stage" aria-label="黑胶唱片与封套"><div class="album-object" id="album-object" title="按住并拖动唱片"><div id="album-model"><div id="vinyl" class="vinyl"><div class="disc-center"><b>MUSIC KIT</b><i></i></div></div><div class="sleeve"><span id="sleeve-title"></span><img id="art" alt="音乐盒封面" draggable="false" hidden></div></div></div></div>
+      <div class="liner" tabindex="0" aria-label="音乐盒说明">
+        <div id="stat-lines"><p>该物品具有 StatTrak™ 技术，在其所有者装备时能跟踪若干统计数据。</p><p class="stat-number">StatTrak™ 官方竞技 MVP 次数：<span id="stat-value"></span></p></div>
+        <p>这个音乐盒将替换游戏中的所有音乐，并且能和与您一起游戏的所有玩家分享。当您成为 MVP 时，音乐盒将向比赛中的所有玩家高奏 MVP 凯歌。</p>
+        <p>音乐盒将替换以下音乐：</p><ul><li>主界面音乐</li><li>回合开始和结束</li><li>地图目标</li><li>十秒警告</li><li>死亡视角</li></ul>
+        <p id="artist-note"></p>
+      </div>
+      <div class="inspect-bar">
+        <div id="sound-picker"><button id="sound-menu" aria-label="选择试听场景" aria-expanded="false" aria-controls="sound-drawer" title="选择试听场景"><span data-icon="headphones"></span></button><div id="sound-drawer" inert><div id="events" aria-label="选择试听场景"></div></div></div>
+        <button id="inspect-play" aria-label="播放"><span data-icon="play"></span></button><div id="volume-picker"><button id="volume-button" aria-label="调节音量" title="调节音量" aria-expanded="false" aria-controls="volume-panel"><span data-icon="volume"></span></button><div id="volume-panel" inert><label for="inspect-volume">总音量 <output id="inspect-volume-value" for="inspect-volume">75%</output></label><input id="inspect-volume" type="range" min="0" max="1" step=".01" value=".75"></div></div><div id="bg-picker"><button id="bg-button" aria-label="更换检视背景" aria-expanded="false" aria-controls="bg-menu" title="更换检视背景"><span data-icon="photo"></span></button>
+          <div id="bg-menu" hidden><div id="bg-options"><button data-preset="courtyard" type="button">默认庭院</button><button data-preset="de_inferno" type="button">炼狱小镇</button><button data-preset="cs_italy" type="button">意大利小镇</button><button data-preset="de_nuke" type="button">核子危机</button><button data-preset="de_mirage" type="button">荒漠迷城</button><button data-preset="de_ancient" type="button">远古遗迹</button><button data-preset="de_anubis" type="button">阿努比斯</button><button data-preset="de_dust2" type="button">炙热沙城 II</button><button data-preset="de_overpass" type="button">死亡游乐园</button><button data-preset="custom" type="button">我的背景</button></div><button id="bg-upload"><span data-icon="upload"></span>上传自己的背景</button></div></div><input id="bg-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <input id="inspect-seek" type="range" min="0" max="1" step="any" value="0" aria-label="检视播放位置"><span id="inspect-time" class="mono"></span><button id="back">关闭</button>
+      </div>
+      <p id="inspect-message" class="message" role="status" hidden></p>
+    </div>
+  </section>
+  <footer><span>MUSIC KIT STUDIO</span><span>CS2 同人音频工作台 · 场外试听</span></footer>
+</main>
+<dialog id="clip-editor" aria-labelledby="clip-title"><div class="dialog-head"><div class="eyebrow">CLIP EDITOR</div><button id="clip-close" class="icon-button" aria-label="取消编辑">×</button></div>
+<h2 id="clip-title">精剪片段</h2><p id="clip-name"></p>
+<label>处理方式<select id="cut-mode"><option value="keep">保留选区</option><option value="remove">剪掉选区</option></select></label>
+<div class="zoom-tools" aria-label="波形缩放"><button id="detail-minus" class="secondary" aria-label="缩小波形">−</button><output id="detail-scale">1×</output><button id="detail-plus" class="secondary" aria-label="放大波形">＋</button><input id="detail-pan" type="range" min="0" max="1" step="any" value="0" aria-label="平移可见时间范围" disabled><small id="detail-range"></small></div><div class="timeline clip-wave" title="在波形上拖动以选择精剪范围"><canvas id="detail-wave" aria-hidden="true"></canvas><div class="trim-shade" id="detail-region"></div></div>
+<small class="muted">拖动波形选择范围，也可以输入精确到毫秒的起点和终点。</small><div class="clip-bounds"><label>起点（秒）<input id="local-in" type="number" min="0" step="any"><input id="local-in-slider" type="range" min="0" step="any" aria-label="拖动片段起点"></label>
+<label>终点（秒）<input id="local-out" type="number" min="0" step="any"><input id="local-out-slider" type="range" min="0" step="any" aria-label="拖动片段终点"></label></div>
+<label class="gain-label">片段音量 <input id="piece-level" type="range" min="0" max="150" value="100"><output id="piece-level-text"></output></label><label class="check"><input type="checkbox" id="gate"> 压低安静处的底噪</label>
+<p id="edit-status" role="status" class="muted"></p><div class="dialog-foot"><button id="edit-listen" class="secondary">试听结果</button><button id="edit-apply" class="primary">应用到场景</button></div>
+</dialog>
+</body></html>
